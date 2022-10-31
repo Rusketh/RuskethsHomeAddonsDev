@@ -20,7 +20,7 @@ Each location supports and override for the ***directory_listing*** setting, if 
 It is also useful to note that location url's can also be paths, for example if I wanted to host my Metalica playlist at ***http://\<ha url\>:\<port\>\\music\metalica*** I would use.
 
       - url: music/metalica
-        path: /media/music/metalica\black_album
+        path: /media/music/metalica/black_album
         directory_listing: true
 
 **Directory Listing** This is the default value of ***directory_listing*** for all locations, if enabled users can browse the files and folders within a given location.
