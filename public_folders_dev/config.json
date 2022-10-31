@@ -33,11 +33,11 @@
     [
       {
         "url": "media",
-        "path": "/media",
-        "directory_listing": false
+        "path": "/media"
       }
     ],
-    "request_logging": false
+    "request_logging": false,
+    "directory_listing": false
   },
   "schema":
   {
@@ -49,6 +49,7 @@
         "directory_listing": "bool"
       }
     ],
-    "request_logging": "bool"
+    "request_logging": "bool",
+    "directory_listing": "bool"
   }
 }

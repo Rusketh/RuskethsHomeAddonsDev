@@ -9,15 +9,6 @@ const PORT = process.env.PORT || 8080; //Math.ceil(8000 + (Math.random() * 1000)
 //Load Config:
 const config = require("./data/options.json");
 
-console.log("Dumping Config:");
-console.log(config);
-console.log("--------------------------------------------------");
-
-//List settings
-console.log(`Setting Request config.request_logging: ${config.request_logging ? "on" : "off"}.`);
-console.log(`Setting Directory Listing: ${config.directory_listing ? "on" : "off"}.`);
-
-
 //Directory Mappings
 const directories = {
 	directories: { }
@@ -25,8 +16,7 @@ const directories = {
 
 for (let folder of config.folders)
 {
-	let split = str.split(":");
-
+	
 	if (!folder.url.match(/([a-zA-z\-_0-9\/\.]+)/)) {
 		console.error(`Invalid url path ${url}`);
 		continue;
@@ -35,6 +25,10 @@ for (let folder of config.folders)
 	if (!folder.path.match(/([a-zA-z\-_0-9\/\.]+)/)) {
 		console.error(`Invalid directory path ${path}`);
 		continue;
+	}
+
+	if (folder.directory_listing === null) {
+		folder.directory_listing = config.directory_listing;
 	}
 
 	let parts = folder.url.split("/");
@@ -46,11 +40,9 @@ for (let folder of config.folders)
 	}
 
 	directory.path = folder.path;
-	directory.directory_listing = foder.directory_listing;
+	directory.directory_listing = folder.directory_listing;
 	console.log(`Serving ${folder.path} at :${PORT}/${folder.url}`);
 }
-
-//console.log(directories);
 
 //Error Handler
 const error = (req, res, code, err) => {
@@ -73,25 +65,18 @@ const handler = (req, res) => {
 	let directory = directories;
 	let parts = req.url.split("/");
 
-	//console.log("---------------------");
-	//console.log(req.url);
-	//console.log("---------------------");
-
 	while (true) {
 		part = parts.shift();
 
 		if (part == null) {
-			//console.log("End of Location");
 			break;
 		}
 
 		if (part == "") {
-			//console.log("Skipped bad-char");
 			continue;
 		}
 
 		if (directory.directories && directory.directories[part]) {
-			//console.log("Next Dir", part);
 			location.push(part);
 			directory = directory.directories[part];
 			if (directory.path) found = { location: [...location], parts: [...parts], directory };
