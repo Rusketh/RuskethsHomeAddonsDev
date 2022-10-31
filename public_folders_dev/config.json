@@ -1,0 +1,54 @@
+{
+  "init": false,
+  "slug": "public_folders_dev",
+  "name": "Public Folders Development",
+  "version": "1.1.13",
+  "description": "Development Branch of Public Folders.",
+  "stage": "experimental",
+  "arch":
+  [
+    "armhf",
+    "armv7",
+    "aarch64",
+    "amd64",
+    "i386"
+  ],
+  "startup": "services",
+  "boot": "auto",
+  "map":
+  [
+    "media:ro"
+  ],
+  "ports":
+  {
+    "8080/tcp": 8044
+  },
+  "ports_description":
+  {
+    "8080/tcp": "Port to serve files on."
+  },
+  "options":
+  {
+    "folders":
+    [
+      {
+        "url": "media",
+        "path": "/media",
+        "directory_listing": false
+      }
+    ],
+    "request_logging": false
+  },
+  "schema":
+  {
+    "folders":
+    [
+      {
+        "url": "str",
+        "path": "str",
+        "directory_listing": "bool"
+      }
+    ],
+    "request_logging": "bool"
+  }
+}
