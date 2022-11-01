@@ -6,7 +6,10 @@
 			"path": "./development/webroot"
 		}
 	],
+
 	"index": "index.html",
 	"request_logging": true,
-	"directory_listing": true
+	"directory_listing": true,
+
+	"page_404": "./development/webroot/pages/404.html"
 }

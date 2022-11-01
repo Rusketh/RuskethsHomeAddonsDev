@@ -94,6 +94,12 @@ for (let folder of config.folders)
 	if (!(folder.inherits instanceof Array)) folder.inherits = [folder.inherits];
 	for (from_url of folder.inherits) inheritDirectory(folder, from_url);
 
+	//Add Error Listing
+	directory.page_401 = folder.page_401;
+	directory.page_402 = folder.page_402;
+	directory.page_403 = folder.page_403;
+	directory.page_404 = folder.page_404;
+
 	//Add Directory
 	directory.url = folder.url;
 	directory.path = folder.path;
@@ -133,6 +139,7 @@ sendError = (req, res, dir, code, err) => {
 	if (!req.error_code) {
 		req.error_code = code;
 		req.file_path = dir[`page_${code}`];
+		console.log("--->", req.file_path);
 		if (req.file_path) return sendResult(req, res, dir);
 	}
 
@@ -160,7 +167,7 @@ sendFile = (req, res, dir) => {
 ***************************************************************************************************************************/
 sendDirectory = (req, res, dir) => {
 	fs.readdir(req.file_path, (err, files) => {
-		
+		if (err && err.code == 'ENOENT') return sendError(req, res, dir, "404");
 		if (err) return sendError(req, res, dir, "401", err);
 
 		if (dir.index) {
@@ -180,7 +187,6 @@ sendDirectory = (req, res, dir) => {
  * Send Directory Listing to Client.
 ***************************************************************************************************************************/
 sendDirectoryListing = (req, res, dir, files) => {
-	
 	if (!dir.directory_listing) return sendError(req, res, dir, "403", "Listing disabled.");
 		
 	res.setHeader('Content-type', 'text/html');
@@ -201,8 +207,12 @@ sendDirectoryListing = (req, res, dir, files) => {
 ***************************************************************************************************************************/
 sendResult = (req, res, dir) => {
 	fs.lstat(req.file_path, (err, stat) => {
-		
+
+		if (err && err.code == 'ENOENT') return sendError(req, res, dir, "404");
+
 		if (err) return sendError(req, res, dir, "401", err);
+		
+		//console.log(req.file_path, stat.isFile(), stat.isDirectory());
 
 		if (stat.isFile()) return sendFile(req, res, dir);
 
@@ -260,6 +270,7 @@ const getRequestDirectory = (req) => {
 	}
 
 	if (directory && directory.root) {
+		path = [...path, ...parts];
 		parts = path;
 	}
 
@@ -271,7 +282,7 @@ const getRequestDirectory = (req) => {
 ***************************************************************************************************************************/
 const handelRequest = (req, res) => {
 
-	let {directory, location, parts} = getRequestDirectory(req);
+	let {directory, location, parts, path} = getRequestDirectory(req);
 
 	if (!directory || !directory.path) {
 		if (config.request_logging) console.log("Requesting:", req.url);
@@ -280,8 +291,8 @@ const handelRequest = (req, res) => {
 
 	if (directory.request_logging) console.log("Requesting:", req.url);
 
-	req.user_path = path.join(...location, ...parts);
-	req.file_path = path.join(directory.path, ...parts);
+	req.user_path = [...location, ...parts].join("/");
+	req.file_path = [directory.path, ...parts].join("/");
 
 	if (directory.request_logging) console.log("Resolved Location:", req.file_path);
 
