@@ -1,37 +1,71 @@
-//Modules
+/***************************************************************************************************************************
+ * Include Libraries
+***************************************************************************************************************************/
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
 
-//Config
+/***************************************************************************************************************************
+ * Load Enviroment Values
+***************************************************************************************************************************/
 const PORT = process.env.PORT || 8044;
 const OPTIONS = process.env.OPTIONS || "./development/options.json";
 
-//Load Config:
+/***************************************************************************************************************************
+ * Load Options File 
+***************************************************************************************************************************/
 const config = require(OPTIONS);
 
-//Directory Mappings
+if (!(config.index instanceof Array)) config.index = [config.index];
+
+/***************************************************************************************************************************
+ * Folder/Directory Map
+***************************************************************************************************************************/
 const directories = {
 	directories: { },
-	directory_listing: config.directory_listing,
-	index: (config.index instanceof Array) ? config.index : [config.index]
+	locations: {
+		global: config,
+		none: { }
+	},
+	root: true
 };
 
+/***************************************************************************************************************************
+ * Folder Inheritance
+***************************************************************************************************************************/
+const inheritDirectory = (folder, url) => {
+	let from = directories.locations[url];
+	
+	if (!from) {
+		console.log(`Unable to inherit location ${folder.url} from location ${url}`);
+		return;
+	}
+
+	if (folder.page_401 == null) folder.page_401 = from.page_401;
+	if (folder.page_402 == null) folder.page_402 = from.page_402;
+	if (folder.page_403 == null) folder.page_403 = from.page_403;
+	if (folder.page_404 == null) folder.page_404 = from.page_404;
+
+	if (from.index) folder.index = [...folder.index, ...from.index];
+	if (folder.request_logging == null) folder.request_logging = from.request_logging;
+	if (folder.directory_listing == null) folder.directory_listing = from.directory_listing;
+};
+
+/***************************************************************************************************************************
+ * Build Directory Mappings
+***************************************************************************************************************************/
 for (let folder of config.folders)
 {
-	
+	//Validate url.
 	if (!folder.url.match(/^([a-zA-z\-_0-9\/\.]+)|\*$/)) {
 		console.error(`Invalid url path ${folder.url}`);
 		continue;
 	}
 
+	//Validate path.
 	if (!folder.path.match(/^([a-zA-z\-_0-9\/\.]+)$/)) {
 		console.error(`Invalid directory path ${folder.path}`);
 		continue;
-	}
-
-	if (folder.directory_listing === null) {
-		folder.directory_listing = config.directory_listing;
 	}
 
 	let base_url = "";
@@ -46,50 +80,145 @@ for (let folder of config.folders)
 		}
 	}
 
+	//check for duplicates.
 	if (directory.path) {
 		console.error(`Invalid url path ${folder.url}, can not appear more then once.`);
 		continue;
 	}
+	
+	//Default Arrays
+	if (!(folder.index instanceof Array)) folder.index = [folder.index];
 
-	if (folder.index && !(folder.index instanceof Array)) {
-		folder.index = [folder.index];
-	}
+	//Inheritance
+	if (folder.inherits == null) folder.inherits = "global";
+	if (!(folder.inherits instanceof Array)) folder.inherits = [folder.inherits];
+	for (from_url of folder.inherits) inheritDirectory(folder, from_url);
 
+	//Add Directory
+	directory.url = folder.url;
 	directory.path = folder.path;
+	directory.index = folder.index;
+	directory.request_logging = folder.request_logging;
 	directory.directory_listing = folder.directory_listing;
-	directory.index = [...folder.index, ...directories.index];
+
+	//Add to locaton map.
+	directories.locations[folder.url] = folder;
+
 	console.log(`Serving ${folder.path} at :${PORT}/${folder.url != "*" ? folder.url : ""}`);
 }
 
-//Error Handler
-const error = (req, res, code, err) => {
+/***************************************************************************************************************************
+ * Function place holders.
+***************************************************************************************************************************/
+let sendError;
+let sendFile;
+let sendDirectory;
+let sendDirectoryListing;
+let sendResult;
+
+/***************************************************************************************************************************
+ * Send Error Code to client.
+***************************************************************************************************************************/
+sendError = (req, res, dir, code, err) => {
+	
+	if (dir.request_logging) {
+		console.log(`Returned Code ${code}`);
+		
+		if (err && err.code)
+			console.log(`JS Error Code: ${err.code}`);
+		else
+			console.log("JS Error", err);
+	};
+
+	if (!req.error_code) {
+		req.error_code = code;
+		req.file_path = dir[`page_${code}`];
+		if (req.file_path) return sendResult(req, res, dir);
+	}
+
 	res.writeHead(200);
 	res.end(code, 'utf-8');
-	
-	if (config.request_logging) {
-		console.log(`Returned Code ${code}`);
-		if (err) console.log("Reason:", err);
-	}
 };
 
-const file = (req, res, filepath) => {
-	fs.readFile(filepath, (err, data) => {
-		if (err && err.code == 'ENOENT') return error(req, res, "404")
-		if (err) return error(req, res, "401", err);
+/***************************************************************************************************************************
+ * Send File to client.
+***************************************************************************************************************************/
+sendFile = (req, res, dir) => {
+	fs.readFile(req.file_path, (err, data) => {
+		if (err && err.code == 'ENOENT') return sendError(req, res, dir, "404");
+		if (err) return sendError(req, res, dir, "401", err);
 		
 		res.writeHead(200);
 		res.end(data);
 
-		if (config.request_logging) console.log("Returned File.");
+		if (dir.request_logging) console.log("Returned File.");
 	});
 };
 
-//Handler:
-const handler = (req, res) => {
+/***************************************************************************************************************************
+ * Send Directory Client.
+***************************************************************************************************************************/
+sendDirectory = (req, res, dir) => {
+	fs.readdir(req.file_path, (err, files) => {
+		
+		if (err) return sendError(req, res, dir, "401", err);
+
+		if (dir.index) {
+			for (index of dir.index) {
+				if (files.includes(index)) {
+					req.file_path = path.join(req.file_path, index);
+					return sendFile(req, res, dir);
+				}
+			}
+		}
+
+		sendDirectoryListing(req, res, dir, files);
+	});
+};
+
+/***************************************************************************************************************************
+ * Send Directory Listing to Client.
+***************************************************************************************************************************/
+sendDirectoryListing = (req, res, dir, files) => {
 	
-	if (config.request_logging) console.log("Requesting:", req.url);
+	if (!dir.directory_listing) return sendError(req, res, dir, "403", "Listing disabled.");
+		
+	res.setHeader('Content-type', 'text/html');
+
+	res.writeHead(200);
+
+	res.write(`Directory: ${req.user_path}`);
+
+	for (let file of files) res.write(`<br/><a href="/${path.join(req.user_path, file)}">${file}</a>`);
+	
+	res.end();
+
+	if (dir.request_logging) console.log("Returned Directory.");
+};
+
+/***************************************************************************************************************************
+ * Send Result
+***************************************************************************************************************************/
+sendResult = (req, res, dir) => {
+	fs.lstat(req.file_path, (err, stat) => {
+		
+		if (err) return sendError(req, res, dir, "401", err);
+
+		if (stat.isFile()) return sendFile(req, res, dir);
+
+		if (stat.isDirectory()) return sendDirectory(req, res, dir);
+
+		sendError(req, res, dir, "404", "Location not found.");
+	});
+};
+
+/***************************************************************************************************************************
+ * Get directory from request.
+***************************************************************************************************************************/
+const getRequestDirectory = (req) => {
 	
 	let found;
+	let path = [ ];
 	let location = [ ];
 	let directory = directories;
 	let parts = req.url.split("/");
@@ -101,14 +230,23 @@ const handler = (req, res) => {
 			break;
 		}
 
-		if (part == "") {
+		if (part === "") {
 			continue;
 		}
+
+		path.push(part);
 
 		if (directory.directories && directory.directories[part]) {
 			location.push(part);
 			directory = directory.directories[part];
-			if (directory.path) found = { location: [...location], parts: [...parts], directory };
+			
+			if (directory.path)
+				found = {
+					location: [...location],
+					parts: [...parts],
+					directory
+				};
+
 			continue;
 		}
 
@@ -116,63 +254,45 @@ const handler = (req, res) => {
 	}
 
 	if (found) {
-		directory = found.directory;
-		location = found.location;
 		parts = found.parts;
+		location = found.location;
+		directory = found.directory;
 	}
 
-	if (!directory || !directory.path) return error(req, res, "404", "No redirection url found.");
-	
-	let userpath = path.join(...location, ...parts);
-	let filepath = path.join(directory.path, ...parts);
+	if (directory && directory.root) {
+		parts = path;
+	}
 
-	if (config.request_logging) console.log("Resolved Location:", filepath);
-	
-	fs.lstat(filepath, (err, stat) => {
-		if (err) return error(req, res, "401", err);
-		
-		if (stat.isFile()) return file(req, res, filepath);
-		
-		if (stat.isDirectory()) {
-
-			return fs.readdir(filepath, (err, files) => {
-				if (err) return error(req, res, "401", err);
-
-				if (directory.index) {
-					for (index of directory.index) {
-						if (files.includes(index)) {
-							return file(req, res, path.join(filepath, index));
-						}
-					}
-				}
-
-				if (!directory.directory_listing) return error(req, res, "403", "Listing disabled.");
-				
-				res.setHeader('Content-type', 'text/html');
-				res.writeHead(200);
-
-				res.write(`Directory: ${userpath}`);
-				
-				for (let file of files) {
-					res.write(`<br/><a href="/${path.join(userpath, file)}">${file}</a>`);
-				}
-				
-				res.end();
-
-				if (config.request_logging) console.log("Returned Directory.");
-			});
-		}
-		
-		return error(req, res, "404", "Location not found.");
-	});
+	return { parts, location, path, directory};
 };
 
-//Create http server.
+/***************************************************************************************************************************
+ * Handel Request
+***************************************************************************************************************************/
+const handelRequest = (req, res) => {
+
+	let {directory, location, parts} = getRequestDirectory(req);
+
+	if (!directory || !directory.path) {
+		if (config.request_logging) console.log("Requesting:", req.url);
+		return sendError(req, res, config.request_logging , "404", "No redirection url found.");
+	}
+
+	if (directory.request_logging) console.log("Requesting:", req.url);
+
+	req.user_path = path.join(...location, ...parts);
+	req.file_path = path.join(directory.path, ...parts);
+
+	if (directory.request_logging) console.log("Resolved Location:", req.file_path);
+
+	sendResult(req, res, directory);
+};
+
+/***************************************************************************************************************************
+ * Start Server
+***************************************************************************************************************************/
 console.log(`Starting HTTP server on port ${PORT}`);
 
-http.createServer(handler).listen(PORT, () => {
+http.createServer(handelRequest).listen(PORT, () => {
 	console.log(`HTTP server started.`);
 });
-
-
-

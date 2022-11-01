@@ -1,0 +1,12 @@
+{
+	"folders":
+	[
+		{
+			"url": "*",
+			"path": "./development/webroot"
+		}
+	],
+	"index": "index.html",
+	"request_logging": true,
+	"directory_listing": true
+}
