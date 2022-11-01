@@ -4,26 +4,28 @@ const http = require('http');
 const path = require('path');
 
 //Config
-const PORT = process.env.PORT || 8080; //Math.ceil(8000 + (Math.random() * 1000));
+const PORT = process.env.PORT || 8044;
 
 //Load Config:
 const config = require("./data/options.json");
 
 //Directory Mappings
 const directories = {
-	directories: { }
+	directories: { },
+	directory_listing: config.directory_listing,
+	index: (config.index instanceof Array) ? config.index : [config.index]
 };
 
 for (let folder of config.folders)
 {
 	
-	if (!folder.url.match(/([a-zA-z\-_0-9\/\.]+)/)) {
-		console.error(`Invalid url path ${url}`);
+	if (!folder.url.match(/^([a-zA-z\-_0-9\/\.]+)|\*$/)) {
+		console.error(`Invalid url path ${folder.url}`);
 		continue;
 	}
 
-	if (!folder.path.match(/([a-zA-z\-_0-9\/\.]+)/)) {
-		console.error(`Invalid directory path ${path}`);
+	if (!folder.path.match(/^([a-zA-z\-_0-9\/\.]+)$/)) {
+		console.error(`Invalid directory path ${folder.path}`);
 		continue;
 	}
 
@@ -31,17 +33,31 @@ for (let folder of config.folders)
 		folder.directory_listing = config.directory_listing;
 	}
 
-	let parts = folder.url.split("/");
-	let base_url = parts.shift();
-	let directory = (directories.directories[base_url] || (directories.directories[base_url] = { directories : { } }));
+	let base_url = "";
+	let directory = directories;
 
-	for (let part in parts) {
-		directory = (directory.directories[part] || (directory.directories[part] = { directories : { } }));
+	if (folder.url != "*") {
+		base_url = parts.shift();
+		directory = (directories.directories[base_url] || (directories.directories[base_url] = { directories : { } }));
+
+		for (let part in folder.url.split("/")) {
+			directory = (directory.directories[part] || (directory.directories[part] = { directories : { } }));
+		}
+	}
+
+	if (directory.path) {
+		console.error(`Invalid url path ${folder.url}, can not appear more then once.`);
+		continue;
+	}
+
+	if (folder.index && !(folder.index instanceof Array)) {
+		folder.index = [folder.index];
 	}
 
 	directory.path = folder.path;
 	directory.directory_listing = folder.directory_listing;
-	console.log(`Serving ${folder.path} at :${PORT}/${folder.url}`);
+	directory.index = [...folder.index, ...directories.index];
+	console.log(`Serving ${folder.path} at :${PORT}/${folder.url != "*" ? folder.url : ""}`);
 }
 
 //Error Handler
@@ -53,6 +69,18 @@ const error = (req, res, code, err) => {
 		console.log(`Returned Code ${code}`);
 		if (err) console.log("Reason:", err);
 	}
+};
+
+const file = (req, res, filepath) => {
+	fs.readFile(filepath, (err, data) => {
+		if (err && err.code == 'ENOENT') return error(req, res, "404")
+		if (err) return error(req, res, "401", err);
+		
+		res.writeHead(200);
+		res.end(data);
+
+		if (config.request_logging) console.log("Returned File.");
+	});
 };
 
 //Handler:
@@ -102,23 +130,22 @@ const handler = (req, res) => {
 	fs.lstat(filepath, (err, stat) => {
 		if (err) return error(req, res, "401", err);
 		
-		if (stat.isFile()) {
-			return fs.readFile(filepath, (err, data) => {
-				if (err && err.code == 'ENOENT') return error(req, res, "404")
-				if (err) return error(req, res, "401", err);
-				
-				res.writeHead(200);
-				res.end(data);
-
-				if (config.request_logging) console.log("Returned File.");
-			});
-		}
+		if (stat.isFile()) return file(req, res, filepath);
 		
 		if (stat.isDirectory()) {
-			if (!directory.directory_listing) return error(req, res, "403", "Listing disabled.");
-			
+
 			return fs.readdir(filepath, (err, files) => {
 				if (err) return error(req, res, "401", err);
+
+				if (directory.index) {
+					for (index of directory.index) {
+						if (files.includes(index)) {
+							return file(req, res, path.join(filepath, index));
+						}
+					}
+				}
+
+				if (!directory.directory_listing) return error(req, res, "403", "Listing disabled.");
 				
 				res.setHeader('Content-type', 'text/html');
 				res.writeHead(200);

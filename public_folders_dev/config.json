@@ -2,7 +2,7 @@
   "init": false,
   "slug": "public_folders_dev",
   "name": "Public Folders Development",
-  "version": "1.1.13",
+  "version": "1.1.14",
   "description": "Development Branch of Public Folders.",
   "stage": "experimental",
   "arch":
@@ -36,6 +36,7 @@
         "path": "/media"
       }
     ],
+    "index": ["index.html"],
     "request_logging": false,
     "directory_listing": false
   },
@@ -46,9 +47,11 @@
       {
         "url": "str",
         "path": "str",
+        "index": ["str"],
         "directory_listing": "bool"
       }
     ],
+    "index": ["str"],
     "request_logging": "bool",
     "directory_listing": "bool"
   }
