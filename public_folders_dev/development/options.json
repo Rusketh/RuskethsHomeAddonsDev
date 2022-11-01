@@ -4,6 +4,10 @@
 		{
 			"url": "*",
 			"path": "./development/webroot"
+		},
+		{
+			"url": "test",
+			"path": "./development/webroot/example"
 		}
 	],
 

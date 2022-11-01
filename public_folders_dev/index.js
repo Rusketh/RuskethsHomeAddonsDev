@@ -72,10 +72,12 @@ for (let folder of config.folders)
 	let directory = directories;
 
 	if (folder.url != "*") {
+		let parts = folder.url.split("/");
+
 		base_url = parts.shift();
 		directory = (directories.directories[base_url] || (directories.directories[base_url] = { directories : { } }));
 
-		for (let part in folder.url.split("/")) {
+		for (let part of parts) {
 			directory = (directory.directories[part] || (directory.directories[part] = { directories : { } }));
 		}
 	}
@@ -139,7 +141,6 @@ sendError = (req, res, dir, code, err) => {
 	if (!req.error_code) {
 		req.error_code = code;
 		req.file_path = dir[`page_${code}`];
-		console.log("--->", req.file_path);
 		if (req.file_path) return sendResult(req, res, dir);
 	}
 
@@ -249,7 +250,7 @@ const getRequestDirectory = (req) => {
 		if (directory.directories && directory.directories[part]) {
 			location.push(part);
 			directory = directory.directories[part];
-			
+			console.log("FOUND!");
 			if (directory.path)
 				found = {
 					location: [...location],
@@ -285,7 +286,7 @@ const handelRequest = (req, res) => {
 	let {directory, location, parts, path} = getRequestDirectory(req);
 
 	if (!directory || !directory.path) {
-		if (config.request_logging) console.log("Requesting:", req.url);
+		if (config.request_logging) console.log("Uknown Request:", req.url);
 		return sendError(req, res, config.request_logging , "404", "No redirection url found.");
 	}
 
@@ -293,7 +294,7 @@ const handelRequest = (req, res) => {
 
 	req.user_path = [...location, ...parts].join("/");
 	req.file_path = [directory.path, ...parts].join("/");
-
+	
 	if (directory.request_logging) console.log("Resolved Location:", req.file_path);
 
 	sendResult(req, res, directory);
