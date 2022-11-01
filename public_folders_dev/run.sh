@@ -3,7 +3,7 @@
 set +u
 
 export PORT=$(bashio::addon.port 8080)
-export FOLDERS=$(bashio::config "folders")
+export OPTIONS="./data/options.json"
 
 bashio::log.info "Starting http service on port $PORT."
 

@@ -32,4 +32,4 @@ In instances where you wish to use Public Folders to serve as a basic HTML websi
 
 **Directory Listing:** This is the default value of ***directory_listing*** for all locations, if enabled users can browse the files and folders within a given location.
 
-**Request Logging:** If set to true, Public Folders will log locations visited and files served to the addons log, this is useful for debugging.
+**Request Logging:** If set to true, the Public Folders will create logs at locations visited, and files served to the addons log, this is useful information for debugging.

@@ -5,9 +5,10 @@ const path = require('path');
 
 //Config
 const PORT = process.env.PORT || 8044;
+const OPTIONS = process.env.OPTIONS || "./development/options.json";
 
 //Load Config:
-const config = require("./data/options.json");
+const config = require(OPTIONS);
 
 //Directory Mappings
 const directories = {
