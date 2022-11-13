@@ -21,20 +21,25 @@ if (!(config.index instanceof Array)) config.index = [config.index];
 /***************************************************************************************************************************
  * Folder/Directory Map
 ***************************************************************************************************************************/
-const directories = {
-	directories: { },
-	locations: {
-		global: config,
-		none: { }
-	},
-	root: true
+const host = () => {
+	return {
+			directories: { },
+			locations: {
+			global: config,
+			none: { }
+		},
+		root: true
+	};
 };
+
+const hosts = { };
+const directories = host();
 
 /***************************************************************************************************************************
  * Folder Inheritance
 ***************************************************************************************************************************/
-const inheritDirectory = (folder, url) => {
-	let from = directories.locations[url];
+const inheritDirectory = (folder, host, url) => {
+	let from = host.locations[url];
 	
 	if (!from) {
 		console.log(`Unable to inherit location ${folder.url} from location ${url}`);
@@ -68,8 +73,18 @@ for (let folder of config.folders)
 		continue;
 	}
 
+	//Validate host.
+	if (folder.host && !folder.host.match(/^([a-zA-z\-_0-9\.]+)|\*$/)) {
+		console.error(`Invalid directory host ${folder.host}`);
+		continue;
+	}
+
 	let base_url = "";
-	let directory = directories;
+	let host = directories;
+
+	if (folder.host && folder.host != "*") host = hosts[folder.host] || (hosts[folder.host] = host());
+	
+	let directory = host;
 
 	if (folder.url != "*") {
 		let parts = folder.url.split("/");
@@ -94,7 +109,7 @@ for (let folder of config.folders)
 	//Inheritance
 	if (folder.inherits == null) folder.inherits = "global";
 	if (!(folder.inherits instanceof Array)) folder.inherits = [folder.inherits];
-	for (from_url of folder.inherits) inheritDirectory(folder, from_url);
+	for (from_url of folder.inherits) inheritDirectory(folder, host, from_url);
 
 	//Add Error Listing
 	directory.page_401 = folder.page_401;
@@ -118,11 +133,23 @@ for (let folder of config.folders)
 /***************************************************************************************************************************
  * Function place holders.
 ***************************************************************************************************************************/
+let sendRedirect;
 let sendError;
 let sendFile;
 let sendDirectory;
 let sendDirectoryListing;
 let sendResult;
+
+
+/***************************************************************************************************************************
+ * Redirect Client.
+***************************************************************************************************************************/
+sendRedirect = (req, res, dir, path) => {
+	res.setHeader('location', path);
+	//res.statusCode = 302;
+	res.writeHead(302);
+	res.end();
+};
 
 /***************************************************************************************************************************
  * Send Error Code to client.
@@ -174,8 +201,9 @@ sendDirectory = (req, res, dir) => {
 		if (dir.index) {
 			for (index of dir.index) {
 				if (files.includes(index)) {
-					req.file_path = path.join(req.file_path, index);
-					return sendFile(req, res, dir);
+					//req.file_path = path.join(req.file_path, index);
+					//return sendFile(req, res, dir);
+					return sendRedirect(req, res, dir, path.join(req.file_path, index));
 				}
 			}
 		}
@@ -224,6 +252,21 @@ sendResult = (req, res, dir) => {
 };
 
 /***************************************************************************************************************************
+ * Get host directory from request.
+***************************************************************************************************************************/
+
+const getHost = (req) => {
+
+	let host = req.hostname;
+	
+	if (!host && req.headers) host = req.headers["x-forwarded-host"] || req.headers.host;
+	
+	if (host) return hosts[host] || directories;
+
+	return directories;
+};
+
+/***************************************************************************************************************************
  * Get directory from request.
 ***************************************************************************************************************************/
 const getRequestDirectory = (req) => {
@@ -231,7 +274,7 @@ const getRequestDirectory = (req) => {
 	let found;
 	let path = [ ];
 	let location = [ ];
-	let directory = directories;
+	let directory = getHost(req);
 	let parts = req.url.split("/");
 
 	while (true) {

@@ -2,7 +2,7 @@
   "init": false,
   "slug": "public_folders_dev",
   "name": "Public Folders Development",
-  "version": "1.1.15",
+  "version": "1.1.16",
   "description": "Development Branch of Public Folders.",
   "stage": "experimental",
   "arch":
@@ -47,6 +47,7 @@
       {
         "url": "str",
         "path": "str",
+        "host": "str?",
         
         "index": ["str?"],
         "inherits": ["str?"],
