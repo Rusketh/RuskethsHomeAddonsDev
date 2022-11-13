@@ -259,12 +259,18 @@ sendResult = (req, res, dir) => {
 ***************************************************************************************************************************/
 
 const getHost = (req) => {
+	if (!req.hostname && req.headers) {
+		req.hostname = req.headers["x-forwarded-host"] || req.headers.host;
+	}
 
-	if (!req.hostname && req.headers) req.hostname = req.headers["x-forwarded-host"] || req.headers.host;
-	
-	if (req.hostname) return hosts[req.hostname.toLowerCase()] || directories;
+	if (req.hostname) {
+		let host = hosts[req.hostname.toLowerCase()];
 
-	req.hostname = "0.0.0.0";
+		if (host) {
+			console.log("HostName: ", req.hostname);
+			return host;
+		}
+	}
 
 	return directories;
 };
