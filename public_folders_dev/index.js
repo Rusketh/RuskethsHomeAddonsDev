@@ -83,7 +83,7 @@ for (let folder of config.folders)
 	let host = directories;
 
 	if (folder.host && folder.host != "*") {
-		host = host.toLowerCase();
+		folder.host = folder.host.toLowerCase();
 		host = hosts[folder.host] || (hosts[folder.host] = addHost());
 	}
 
@@ -130,7 +130,7 @@ for (let folder of config.folders)
 	//Add to locaton map.
 	directories.locations[folder.url] = folder;
 
-	console.log(`Serving ${folder.path} at :${PORT}/${folder.url != "*" ? folder.url : ""}`);
+	console.log(`Serving ${folder.path} at ${(folder.host && folder.host != "*") ? folder.host : ""}:${PORT}/${folder.url != "*" ? folder.url : ""}`);
 }
 
 /***************************************************************************************************************************
@@ -260,11 +260,11 @@ sendResult = (req, res, dir) => {
 
 const getHost = (req) => {
 
-	let host = req.hostname;
+	if (!req.hostname && req.headers) req.hostname = req.headers["x-forwarded-host"] || req.headers.host;
 	
-	if (!host && req.headers) host = req.headers["x-forwarded-host"] || req.headers.host;
-	
-	if (host) return hosts[host.toLowerCase()] || directories;
+	if (req.hostname) return hosts[req.hostname.toLowerCase()] || directories;
+
+	req.hostname = "0.0.0.0";
 
 	return directories;
 };
@@ -332,11 +332,11 @@ const handelRequest = (req, res) => {
 	let {directory, location, parts, path} = getRequestDirectory(req);
 
 	if (!directory || !directory.path) {
-		if (config.request_logging) console.log("Uknown Request:", req.url);
+		if (config.request_logging) console.log("Uknown Request:", req.hostname, req.url);
 		return sendError(req, res, config.request_logging , "404", "No redirection url found.");
 	}
 
-	if (directory.request_logging) console.log("Requesting:", req.url);
+	if (directory.request_logging) console.log("Requesting:", req.hostname, req.url);
 
 	req.user_path = [...location, ...parts].join("/");
 	req.file_path = [directory.path, ...parts].join("/");
