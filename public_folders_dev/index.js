@@ -21,7 +21,7 @@ if (!(config.index instanceof Array)) config.index = [config.index];
 /***************************************************************************************************************************
  * Folder/Directory Map
 ***************************************************************************************************************************/
-const host = () => {
+const addHost = () => {
 	return {
 			directories: { },
 			locations: {
@@ -33,7 +33,7 @@ const host = () => {
 };
 
 const hosts = { };
-const directories = host();
+const directories = addHost();
 
 /***************************************************************************************************************************
  * Folder Inheritance
@@ -82,8 +82,11 @@ for (let folder of config.folders)
 	let base_url = "";
 	let host = directories;
 
-	if (folder.host && folder.host != "*") host = hosts[folder.host] || (hosts[folder.host] = host());
-	
+	if (folder.host && folder.host != "*") {
+		host = host.toLowerCase();
+		host = hosts[folder.host] || (hosts[folder.host] = addHost());
+	}
+
 	let directory = host;
 
 	if (folder.url != "*") {
@@ -261,7 +264,7 @@ const getHost = (req) => {
 	
 	if (!host && req.headers) host = req.headers["x-forwarded-host"] || req.headers.host;
 	
-	if (host) return hosts[host] || directories;
+	if (host) return hosts[host.toLowerCase()] || directories;
 
 	return directories;
 };
